@@ -1,6 +1,7 @@
 """2015~2026년 전국 인구 단계구분도."""
 
 import re
+from random import Random
 from urllib.parse import quote
 
 import pandas as pd
@@ -24,29 +25,86 @@ INDICATORS = {
         "cuts": [7, 10, 13, 16],
     },
 }
-# 질감은 파일을 따로 내려받지 않고 SVG와 CSS로 그린다.
-PAPER_TEXTURE = "data:image/svg+xml," + quote("""
-<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
-  <filter id="grain" x="0" y="0" width="100%" height="100%">
-    <feTurbulence type="fractalNoise" baseFrequency=".72" numOctaves="3"
-      stitchTiles="stitch" seed="17"/>
-    <feColorMatrix type="saturate" values="0"/>
-  </filter>
-  <rect width="320" height="320" filter="url(#grain)" opacity=".075"/>
-  <g fill="none" stroke="#83663e" stroke-width=".5" opacity=".16">
-    <path d="M12 29q19 7 31 2m45 26q8 13 5 28m92-66q13 2 24 10"/>
-    <path d="M258 38q-4 13 3 23M42 127q13-5 24-1m56 31q7 11 19 14"/>
-    <path d="M208 111q-7 12-3 24m62 33q13 4 22-1M15 221q14 5 26-2"/>
-    <path d="M93 230q8-13 5-25m71 46q14 7 27 3m57-19q-3 12 4 23"/>
-    <path d="M48 290q11 5 25 2m69 10q9-7 21-4m117-17q11 6 22 3"/>
-  </g>
-  <g fill="#8a6537" opacity=".13">
-    <circle cx="28" cy="72" r=".8"/><circle cx="153" cy="44" r=".6"/>
-    <circle cx="284" cy="123" r="1"/><circle cx="67" cy="184" r=".7"/>
-    <circle cx="194" cy="216" r=".9"/><circle cx="114" cy="283" r=".6"/>
-  </g>
-</svg>
-""")
+def make_paper_texture():
+    """길이가 다른 섬유와 닥 껍질 반점을 큰 무늬판 안에 흩어 놓는다."""
+    # 같은 배치를 유지하여 연도나 지표를 바꿀 때 무늬가 움직이지 않는다.
+    rng = Random(1974)
+    width, height = 1400, 1000
+    shapes = []
+
+    for index in range(140):
+        x, y = rng.uniform(0, width), rng.uniform(0, height)
+        length = rng.uniform(150, 340) if index < 24 else rng.uniform(30, 170)
+        bend = rng.uniform(-22, 22)
+        thickness = rng.uniform(0.8, 2.5)
+        opacity = rng.uniform(0.12, 0.27)
+        color = rng.choice(["#78582e", "#987342", "#ae8951", "#fff8df"])
+        transform = f'translate({x:.1f} {y:.1f}) rotate({rng.uniform(0, 180):.1f})'
+
+        if index % 3:
+            # 긴 굽은 섬유와 가늘게 갈라지는 잔가닥.
+            shape = (
+                f'<path d="M0 0 C{length * .3:.1f} {bend:.1f} '
+                f'{length * .7:.1f} {-bend * .6:.1f} {length:.1f} 0" '
+                f'fill="none" stroke="{color}" stroke-width="{thickness:.2f}" '
+                f'stroke-linecap="round"/>'
+            )
+            if index % 4 == 0:
+                shape += (
+                    f'<path d="M{length * .25:.1f} {bend * .2:.1f} '
+                    f'Q{length * .6:.1f} {bend + 9:.1f} {length * .9:.1f} 7" '
+                    f'fill="none" stroke="{color}" stroke-width=".55"/>'
+                )
+        else:
+            # 양끝이 가늘고 가운데가 넓은 닥 섬유 조각.
+            shape = (
+                f'<path d="M0 0 Q{length * .4:.1f} {bend - thickness:.1f} '
+                f'{length:.1f} 0 Q{length * .55:.1f} {bend + thickness * 2:.1f} '
+                f'0 0Z" fill="{color}"/>'
+            )
+        shapes.append(f'<g transform="{transform}" opacity="{opacity:.2f}">{shape}</g>')
+
+    for _ in range(220):
+        x, y = rng.uniform(0, width), rng.uniform(0, height)
+        radius = rng.uniform(0.5, 3.2)
+        shapes.append(
+            f'<ellipse cx="{x:.1f}" cy="{y:.1f}" rx="{radius:.2f}" '
+            f'ry="{radius * rng.uniform(.25, 1.4):.2f}" '
+            f'transform="rotate({rng.uniform(0, 180):.1f} {x:.1f} {y:.1f})" '
+            f'fill="#805e31" opacity="{rng.uniform(.09, .25):.2f}"/>'
+        )
+
+    # 가장자리에 걸친 섬유도 반대편에 이어지도록 무늬판을 감싸 그린다.
+    copies = "".join(
+        f'<use href="#fibers" x="{dx}" y="{dy}"/>'
+        for dx in (-width, 0, width) for dy in (-height, 0, height)
+    )
+    svg = f"""
+    <svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}"
+         viewBox="0 0 {width} {height}">
+      <defs>
+        <filter id="grain" x="0" y="0" width="100%" height="100%">
+          <feTurbulence type="fractalNoise" baseFrequency=".48" numOctaves="3"
+            stitchTiles="stitch" seed="17"/>
+          <feColorMatrix type="saturate" values="0"/>
+        </filter>
+        <filter id="pulp" x="0" y="0" width="100%" height="100%">
+          <feTurbulence type="fractalNoise" baseFrequency=".012 .038" numOctaves="4"
+            stitchTiles="stitch" seed="29"/>
+          <feColorMatrix type="saturate" values="0"/>
+        </filter>
+        <g id="fibers">{''.join(shapes)}</g>
+      </defs>
+      <rect width="100%" height="100%" filter="url(#pulp)" opacity=".18"/>
+      <rect width="100%" height="100%" filter="url(#grain)" opacity=".10"/>
+      {copies}
+    </svg>
+    """
+    return "data:image/svg+xml," + quote(svg)
+
+
+# 외부 그림 파일 없이 SVG와 CSS로 한지의 질감을 만든다.
+PAPER_TEXTURE = make_paper_texture()
 STYLE = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap');
@@ -58,7 +116,8 @@ STYLE = """
         radial-gradient(ellipse at 4% 8%, #9d723d24, transparent 43%),
         radial-gradient(ellipse at 96% 86%, #94633226, transparent 48%),
         linear-gradient(102deg, #d9c29b, #efe4cd 18%, #f2e9d7 53%, #ddc8a5);
-    background-size: 320px 320px, auto, auto, auto;
+    background-size: 1680px 1200px, auto, auto, auto;
+    background-position: -190px -75px, center, center, center;
 }
 .stApp, .stApp p, .stApp h1, .stApp h2, .stApp h3,
 .stApp label, .stApp input, .stApp button,
@@ -77,9 +136,12 @@ STYLE = """
         url("__PAPER_TEXTURE__"),
         radial-gradient(ellipse at 0% 0%, #9e71352b, transparent 38%),
         radial-gradient(ellipse at 100% 97%, #9a6b3329, transparent 36%),
+        radial-gradient(ellipse at 18% 72%, #9b702a18, transparent 22%),
+        radial-gradient(ellipse at 82% 61%, #96602e16, transparent 19%),
         radial-gradient(ellipse at 72% 28%, #fffaf022, transparent 60%),
         linear-gradient(93deg, #b58c4520, transparent 7%, transparent 94%, #b58c451c);
-    background-size: 320px 320px, auto, auto, auto, auto;
+    background-size: 1400px 1000px, auto, auto, auto, auto, auto, auto;
+    background-position: 47px 83px, center, center, center, center, center, center;
     border: 1px solid #a9885140;
     border-radius: 2px 5px 3px 2px;
     box-shadow: 0 9px 32px #50391c24, inset 0 0 65px #a1793320;
