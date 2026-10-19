@@ -1,6 +1,7 @@
 """2015~2026년 전국 인구 단계구분도."""
 
 import re
+from urllib.parse import quote
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -11,7 +12,7 @@ import streamlit as st
 BASE_URL = "https://raw.githubusercontent.com/first2022-cyber/contents/main/"
 POPULATION_URL = BASE_URL + "population_ts_yearly_gender.zip"
 BOUNDARY_URL = BASE_URL + "sigungu_kr.geojson"
-PAPER, INK = "#f5f0e5", "#393229"
+PAPER, INK = "#efe4cd", "#393229"
 COLORS = ["#eee2c6", "#d3b88a", "#ad8655", "#7e5734", "#422b1d"]
 INDICATORS = {
     "고령화율 (65세 이상)": {
@@ -23,10 +24,42 @@ INDICATORS = {
         "cuts": [7, 10, 13, 16],
     },
 }
+# 질감은 파일을 따로 내려받지 않고 SVG와 CSS로 그린다.
+PAPER_TEXTURE = "data:image/svg+xml," + quote("""
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+  <filter id="grain" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency=".72" numOctaves="3"
+      stitchTiles="stitch" seed="17"/>
+    <feColorMatrix type="saturate" values="0"/>
+  </filter>
+  <rect width="320" height="320" filter="url(#grain)" opacity=".075"/>
+  <g fill="none" stroke="#83663e" stroke-width=".5" opacity=".16">
+    <path d="M12 29q19 7 31 2m45 26q8 13 5 28m92-66q13 2 24 10"/>
+    <path d="M258 38q-4 13 3 23M42 127q13-5 24-1m56 31q7 11 19 14"/>
+    <path d="M208 111q-7 12-3 24m62 33q13 4 22-1M15 221q14 5 26-2"/>
+    <path d="M93 230q8-13 5-25m71 46q14 7 27 3m57-19q-3 12 4 23"/>
+    <path d="M48 290q11 5 25 2m69 10q9-7 21-4m117-17q11 6 22 3"/>
+  </g>
+  <g fill="#8a6537" opacity=".13">
+    <circle cx="28" cy="72" r=".8"/><circle cx="153" cy="44" r=".6"/>
+    <circle cx="284" cy="123" r="1"/><circle cx="67" cy="184" r=".7"/>
+    <circle cx="194" cy="216" r=".9"/><circle cx="114" cy="283" r=".6"/>
+  </g>
+</svg>
+""")
 STYLE = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap');
-.stApp { background: #f5f0e5; color: #393229; }
+.stApp {
+    color: #393229;
+    background-color: #e5d5b6;
+    background-image:
+        url("__PAPER_TEXTURE__"),
+        radial-gradient(ellipse at 4% 8%, #9d723d24, transparent 43%),
+        radial-gradient(ellipse at 96% 86%, #94633226, transparent 48%),
+        linear-gradient(102deg, #d9c29b, #efe4cd 18%, #f2e9d7 53%, #ddc8a5);
+    background-size: 320px 320px, auto, auto, auto;
+}
 .stApp, .stApp p, .stApp h1, .stApp h2, .stApp h3,
 .stApp label, .stApp input, .stApp button,
 [data-baseweb="select"], [data-baseweb="popover"],
@@ -34,18 +67,46 @@ STYLE = """
     font-family: 'Gowun Batang', 'Batang', serif;
 }
 .stApp p { font-size: 17px; line-height: 1.85; }
-.block-container { max-width: 1250px; padding-top: 1.8rem; }
+.block-container {
+    max-width: 1250px;
+    margin-top: 1.2rem;
+    margin-bottom: 2rem;
+    padding: 2rem clamp(18px, 3vw, 48px) 3rem;
+    background-color: #efe4cd;
+    background-image:
+        url("__PAPER_TEXTURE__"),
+        radial-gradient(ellipse at 0% 0%, #9e71352b, transparent 38%),
+        radial-gradient(ellipse at 100% 97%, #9a6b3329, transparent 36%),
+        radial-gradient(ellipse at 72% 28%, #fffaf022, transparent 60%),
+        linear-gradient(93deg, #b58c4520, transparent 7%, transparent 94%, #b58c451c);
+    background-size: 320px 320px, auto, auto, auto, auto;
+    border: 1px solid #a9885140;
+    border-radius: 2px 5px 3px 2px;
+    box-shadow: 0 9px 32px #50391c24, inset 0 0 65px #a1793320;
+}
+[data-testid="stHeader"] { background: #e5d5b6ee; }
+[data-baseweb="select"] > div {
+    background-color: #f5eddc;
+    border-color: #a88c605c;
+    border-radius: 3px;
+}
+.stApp hr { border-color: #92744b66; }
 .masthead { text-align: center; border-top: 4px double #74634d;
-    border-bottom: 4px double #74634d; padding: 16px 0; margin-bottom: 18px; }
+    border-bottom: 4px double #74634d; padding: 16px 0; margin-bottom: 18px;
+    background: linear-gradient(90deg, transparent, #fff7df30, transparent); }
 .masthead .paper-name { font-size: 22px; letter-spacing: .2em; margin: 0; }
 .masthead h1 { font-size: clamp(28px, 3.3vw, 44px); font-weight: 700;
     line-height: 1.5; padding: 10px 5px; letter-spacing: -.03em; }
 .masthead .edition { font-size: 15px; }
 [data-testid="stMetric"] { border-top: 2px solid #8b785b;
-    border-bottom: 1px solid #c7baa4; padding: 14px 10px; }
+    border-bottom: 1px solid #bba47d; padding: 14px 10px;
+    background: linear-gradient(120deg, #fcf5e541, #d1b48214); }
 [data-testid="stMetricValue"] { font-size: 32px; font-weight: 700; }
+@media (max-width: 640px) {
+    .block-container { margin-top: 0; border: 0; box-shadow: none; }
+}
 </style>
-"""
+""".replace("__PAPER_TEXTURE__", PAPER_TEXTURE)
 
 
 def normalize_codes(codes):
@@ -169,11 +230,11 @@ def make_map(regions, geojson, indicator):
                        + ": %{customdata[1]:.2f}%<extra></extra>"),
     ))
     figure.update_geos(
-        fitbounds="locations", visible=False, projection_type="mercator", bgcolor=PAPER,
+        fitbounds="locations", visible=False, projection_type="mercator", bgcolor="rgba(0,0,0,0)",
     )
     figure.update_layout(
         height=710, margin={"l": 0, "r": 0, "t": 10, "b": 0},
-        paper_bgcolor=PAPER, dragmode="pan",
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", dragmode="pan",
         font={"family": "Gowun Batang, Batang, serif", "size": 15, "color": INK},
         hoverlabel={"bgcolor": PAPER, "font_color": INK},
     )
